@@ -23,7 +23,7 @@ irm https://raw.githubusercontent.com/joece035/maths-helper/main/install.ps1 | i
 curl -fsSL https://raw.githubusercontent.com/joece035/maths-helper/main/install.sh | bash
 ```
 
-> **คำแนะนำ:** เมื่อติดตั้งเสร็จ สามารถพิมพ์ `mth` หรือ `slv` ในหน้าต่าง Terminal ถัดไปได้ทันที!
+> **คำแนะนำ:** เมื่อติดตั้งเสร็จ จะต้องปิดแล้วเปิด terminal session ใหม่ จึงจะสามารถพิมพ์ `mth` หรือ `slv` ในหน้าต่าง Terminal ถัดไปได้ทันที!
 
 ---
 
