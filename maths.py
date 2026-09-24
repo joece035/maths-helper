@@ -77,8 +77,16 @@ Examples:
         "sqrt": math.sqrt, "abs": abs, "int": int,
         "round": excel_round, "roundup": roundup, "rounddown": rounddown,
         "ceil": math.ceil, "floor": math.floor,
+        # Radian trig (standard)
         "sin": math.sin, "cos": math.cos, "tan": math.tan,
         "asin": math.asin, "acos": math.acos, "atan": math.atan,
+        # Degree-friendly trig — Non-IT safe 🙌
+        "sind":  lambda x: math.sin(math.radians(x)),
+        "cosd":  lambda x: math.cos(math.radians(x)),
+        "tand":  lambda x: math.tan(math.radians(x)),
+        "asind": lambda x: math.degrees(math.asin(x)),
+        "acosd": lambda x: math.degrees(math.acos(x)),
+        "atand": lambda x: math.degrees(math.atan(x)),
         "log": lambda x, b=10: math.log(x, b), "ln": math.log,
         "exp": math.exp, "pow": math.pow,
         "pi": math.pi, "e": math.e,
@@ -97,6 +105,28 @@ Examples:
         if fn in env:
             return fn + "("
         return match.group(0)
+
+    # ── Unit Suffix Pre-processing ──────────────────────────────────
+    # 30deg → (30*pi/180)  |  30° → (30*pi/180)  |  1.57rad → 1.57
+    PI = math.pi
+    expr = re.sub(r'(\d+\.?\d*)\s*deg\b', lambda m: f'({float(m.group(1))}*{PI}/180)', expr, flags=re.IGNORECASE)
+    expr = re.sub(r'(\d+\.?\d*)\u00b0', lambda m: f'({float(m.group(1))}*{PI}/180)', expr)
+    expr = re.sub(r'(\d+\.?\d*)\s*rad\b', lambda m: m.group(1), expr, flags=re.IGNORECASE)
+
+    # ── Smart Hint: detect sin/cos/tan(large_angle) ────────────────
+    _smart_hint = None
+    _trig_match = re.search(r'\b(?:sin|cos|tan)\(([^)]+)\)', expr, re.IGNORECASE)
+    if _trig_match:
+        try:
+            _ang_val = float(_trig_match.group(1).strip())
+            if _ang_val > 2 * PI:  # > 6.28 → almost certainly meant degrees
+                _smart_hint = (
+                    f"\033[1;33m💡 Tip: sin/cos/tan ใช้หน่วย Radian — "
+                    f"ถ้าต้องการมุม {_trig_match.group(1).strip()} องศา "
+                    f"ให้ใช้ sind/cosd/tand แทนครับ\033[0m"
+                )
+        except (ValueError, TypeError):
+            pass
 
     # replace case-insensitive function calls
     norm_expr = re.sub(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(', replace_fn, expr)
@@ -121,6 +151,9 @@ Examples:
         print(f"{final_res:.{scale}f}")
     else:
         print(res)
+    # Smart hint to stderr (non-blocking, won't break pipes)
+    if _smart_hint:
+        print(_smart_hint, file=sys.stderr)
     return 0
 
 

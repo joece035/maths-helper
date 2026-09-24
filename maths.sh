@@ -31,6 +31,14 @@
 #   CEIL, FLOOR, POW, SQRT, MOD, IF,
 #   SIN, COS, TAN, ASIN, ACOS, ATAN, LOG, LN, EXP, PI, E
 #
+# ── Degree-friendly Trig (Non-IT Friendly) ──────────────────
+#   sind(30)   cosd(60)   tand(45)   → input in DEGREES, output numeric
+#   asind(0.5) acosd(1)   atand(1)   → output in DEGREES
+#   sin(30deg) cos(45°)   tan(1.57rad) → unit suffix syntax
+#
+# Smart Hint: if you type sin(30) or cos(45) with large angles,
+#   mth prints a yellow warning suggesting sind(30) or sin(30deg)
+#
 # Operators: + - * / ^ %  (^ = power, % = mod; ** also accepted)
 # ============================================================
 
@@ -47,8 +55,16 @@ Examples:
   mth POW(2,10)            # 1024
   mth if(100>50,"y","n")   # y
 
-TIP: Variadic functions (SUM, AVG, MIN, MAX) use commas like Excel.
-     Space-separated args need quotes: mth "sqrt(5^2 + 10^2)" works
+Trigonometry (Degree-friendly — Non-IT safe):
+  mth sind(30)             # 0.50   (sin ของ 30 องศา)
+  mth cosd(60)             # 0.50   (cos ของ 60 องศา)
+  mth tand(45)             # 1.00   (tan ของ 45 องศา)
+  mth asind(0.5)           # 30.00  (arc sin → ผลลัพธ์เป็นองศา)
+  mth "sin(30deg)"         # 0.50   (unit suffix syntax)
+  mth "cos(45°)"           # 0.71   (Unicode degree symbol)
+
+💡 TIP: sind/cosd/tand รับ-ส่งเป็นองศา ปลอดภัยสำหรับงานวิศวกรรม
+        sin/cos/tan แบบปกติใช้หน่วย Radian (สำหรับคนที่รู้อยู่แล้ว)
 EOF
         return 1
     }
@@ -157,6 +173,62 @@ EOF
     # 3. Convert Excel constants: pi() → 3.14159..., e() → 2.71828...
     expr="${expr//pi()/3.14159265358979}"
     expr="${expr//e()/2.71828182845905}"
+
+    # ── 4. Degree Unit Suffix: convert 30deg / 30° / 30rad ──────────
+    # Matches: <number>deg, <number>°, <number>rad (case-insensitive)
+    # Replace NUMBERdeg → (NUMBER*3.14159265358979/180)
+    # Replace NUMBER°   → (NUMBER*3.14159265358979/180)
+    # Replace NUMBERrad → NUMBER  (explicit rad is already radian)
+    expr="$(echo "$expr" | sed \
+        -e 's/\([0-9][0-9.]*\)deg/\(\1*3.14159265358979\/180\)/gI' \
+        -e 's/\([0-9][0-9.]*\)°/\(\1*3.14159265358979\/180\)/g' \
+        -e 's/\([0-9][0-9.]*\)rad/\1/gI')"
+
+    # ── 5. Degree Family Functions: expand sind/cosd/tand/asind/acosd/atand ──
+    # sind(X)  → sin(X*pi/180)   — accepts degrees, returns numeric
+    # cosd(X)  → cos(X*pi/180)
+    # tand(X)  → tan(X*pi/180)
+    # asind(X) → asin(X)*180/pi  — returns degrees
+    # acosd(X) → acos(X)*180/pi
+    # atand(X) → atan(X)*180/pi
+    # Note: We use placeholder token __PI__ to avoid double-expanding pi()
+    local PI_VAL="3.14159265358979"
+    expr="$(echo "$expr" | sed \
+        -e "s/\bsind(/__SIND(/gI" \
+        -e "s/\bcosd(/__COSD(/gI" \
+        -e "s/\btand(/__TAND(/gI" \
+        -e "s/\basind(/__ASIND(/gI" \
+        -e "s/\bacosd(/__ACOSD(/gI" \
+        -e "s/\batand(/__ATAND(/gI")"
+    # Expand degree-family placeholders (awk will see these as normal FN names)
+    # We map them to awk FN tokens via the FN handler in awk below.
+    # Restore names so awk can identify them:
+    expr="$(echo "$expr" | sed \
+        -e 's/__SIND/sind/g' \
+        -e 's/__COSD/cosd/g' \
+        -e 's/__TAND/tand/g' \
+        -e 's/__ASIND/asind/g' \
+        -e 's/__ACOSD/acosd/g' \
+        -e 's/__ATAND/atand/g')"
+
+    # ── 6. Smart Hint: detect sin/cos/tan(N) where N looks like degrees ──
+    # If N > 2*pi (~6.28) user almost certainly meant degrees, not radians.
+    # We print a warning AFTER computing (non-blocking), captured in __hint__.
+    local _hint_expr="$expr"
+    local _smart_hint=""
+    # Extract first trig call argument for heuristic check
+    local _trig_match
+    _trig_match="$(echo "$_hint_expr" | grep -oP '(?<=\b(?:sin|cos|tan)\()[^)]+' | head -1 2>/dev/null || true)"
+    if [[ -n "$_trig_match" ]]; then
+        # Evaluate the argument numerically to check if > 2*pi
+        local _ang
+        _ang="$(echo "$_trig_match" | awk '{v=$1+0; printf "%.4f", v}' 2>/dev/null || true)"
+        if [[ -n "$_ang" ]] && awk "BEGIN{exit !($_ang+0 > 6.2832)}" 2>/dev/null; then
+            local _deg_result
+            _deg_result="$(echo "$_trig_match" | awk '{v=$1+0; printf "%.4f", v*3.14159265358979/180}' 2>/dev/null || true)"
+            _smart_hint="\033[1;33m💡 Tip: sin/cos/tan ใช้หน่วย Radian — ถ้าต้องการมุม ${_trig_match} องศา ให้ใช้ sind/cosd/tand แทนครับ\033[0m"
+        fi
+    fi
 
     local awk_out
     awk_out="$(awk -v expr="$expr" -v scale="$scale" -v mode="$mode" '
@@ -362,6 +434,14 @@ EOF
                 else if (fn == "asin")  { v = st[sp--]; st[++sp] = atan2(v, sqrt(1-v*v)); sttype[sp] = "n" }
                 else if (fn == "acos")  { v = st[sp--]; st[++sp] = atan2(sqrt(1-v*v), v); sttype[sp] = "n" }
                 else if (fn == "atan")  { v = st[sp--]; st[++sp] = atan2(v, 1); sttype[sp] = "n" }
+                # ── Degree-family: sind/cosd/tand → accept degrees, numeric out ──
+                else if (fn == "sind")  { v = st[sp--]; r=v*3.14159265358979/180; st[++sp] = sin(r); sttype[sp] = "n" }
+                else if (fn == "cosd")  { v = st[sp--]; r=v*3.14159265358979/180; st[++sp] = cos(r); sttype[sp] = "n" }
+                else if (fn == "tand")  { v = st[sp--]; r=v*3.14159265358979/180; st[++sp] = sin(r)/cos(r); sttype[sp] = "n" }
+                # ── Arc degree-family: asind/acosd/atand → accept numeric, output degrees ──
+                else if (fn == "asind") { v = st[sp--]; st[++sp] = atan2(v, sqrt(1-v*v))*180/3.14159265358979; sttype[sp] = "n" }
+                else if (fn == "acosd") { v = st[sp--]; st[++sp] = atan2(sqrt(1-v*v), v)*180/3.14159265358979; sttype[sp] = "n" }
+                else if (fn == "atand") { v = st[sp--]; st[++sp] = atan2(v, 1)*180/3.14159265358979; sttype[sp] = "n" }
                 else if (fn == "ln")    { v = st[sp--]; st[++sp] = log(v); sttype[sp] = "n" }
                 else if (fn == "exp")   { v = st[sp--]; st[++sp] = exp(v); sttype[sp] = "n" }
                 else if (fn == "log")   { base = st[sp--]; x = st[sp--]; st[++sp] = (base<=0||base==1||x<=0) ? 0 : log(x)/log(base); sttype[sp] = "n" }
@@ -425,6 +505,8 @@ EOF
         return 1
     fi
     printf '%s\n' "$awk_out"
+    # Print smart hint AFTER the result (non-blocking, to stderr so it doesn't pollute pipes)
+    [[ -n "$_smart_hint" ]] && printf "${_smart_hint}\n" >&2
 }
 
 # Friendly aliases
