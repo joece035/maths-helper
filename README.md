@@ -61,7 +61,6 @@ slv "x = 2x + y" "y = 2"
 # ผลลัพธ์: x = -2,  y = 2
 
 # 3. ตรีโกณมิติแบบองศา(--deg หรือ -d) ถ้าไม่เติม --deg,-d จะ defaultเ มุมเป็นหน่วย radian
-
 slv --deg "h = a * sin(b)" "a = 10" "b = 30"
 # ผลลัพธ์: h = 5,  a = 10,  b = 30   (sin 30° = 0.5)
 
@@ -129,7 +128,7 @@ slv "2x + 10 = 30"
 slv "x = 2x + y" "y = 2"
 # Output: x = -2,  y = 2
 
-# 3. Trigonometry in degrees (--deg or -d)
+# 3. Trigonometry in degrees (--deg or -d) , default radain ( run without --deg,-d )
 slv --deg "h = a * sin(b)" "a = 10" "b = 30"
 # Output: h = 5,  a = 10,  b = 30   (sin 30° = 0.5)
 
